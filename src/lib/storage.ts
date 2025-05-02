@@ -3,11 +3,13 @@ import type { Product } from '@/types/product';
 import type { Table } from '@/types/table'; // Import Table type
 import type { Sale } from '@/types/sale'; // Import Sale type
 import type { Insumo } from '@/types/insumo'; // Import Insumo type
+import type { Recipe } from '@/types/recipe'; // Import Recipe type
 
 const PRODUCTS_STORAGE_KEY = 'snacktrack_products';
 const TABLES_STORAGE_KEY = 'snacktrack_tables'; // Key for tables
 const SALES_HISTORY_STORAGE_KEY = 'snacktrack_sales_history'; // Key for sales history
 const INSUMOS_STORAGE_KEY = 'snacktrack_insumos'; // Key for insumos
+const RECIPES_STORAGE_KEY = 'snacktrack_recipes'; // Key for recipes
 
 // Helper function to safely access localStorage
 const getLocalStorage = (): Storage | null => {
@@ -151,6 +153,38 @@ export const loadInsumosFromStorage = (): Insumo[] => {
     } catch (error) {
       console.error("Erro ao carregar insumos do localStorage:", error);
       // storage.removeItem(INSUMOS_STORAGE_KEY); // Handle potential corruption
+    }
+  }
+  return []; // Return empty array if storage is unavailable or data is invalid/missing
+};
+
+// --- Recipe Storage ---
+export const saveRecipesToStorage = (recipes: Recipe[]): void => {
+  const storage = getLocalStorage();
+  if (storage) {
+    try {
+      storage.setItem(RECIPES_STORAGE_KEY, JSON.stringify(recipes));
+    } catch (error) {
+      console.error("Erro ao salvar receitas no localStorage:", error);
+    }
+  }
+};
+
+export const loadRecipesFromStorage = (): Recipe[] => {
+  const storage = getLocalStorage();
+  if (storage) {
+    try {
+      const storedRecipes = storage.getItem(RECIPES_STORAGE_KEY);
+      if (storedRecipes) {
+        const parsedData = JSON.parse(storedRecipes);
+        if (Array.isArray(parsedData)) {
+          // Basic validation, could add more checks for recipe structure
+          return parsedData as Recipe[];
+        }
+      }
+    } catch (error) {
+      console.error("Erro ao carregar receitas do localStorage:", error);
+      // storage.removeItem(RECIPES_STORAGE_KEY); // Handle potential corruption
     }
   }
   return []; // Return empty array if storage is unavailable or data is invalid/missing

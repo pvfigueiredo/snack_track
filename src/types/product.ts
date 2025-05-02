@@ -10,6 +10,7 @@ export type Product = {
   name: string; // Nome do produto
   purchasePrice: number; // Valor de compra
   salePrice: number; // Valor de venda (replaces 'price')
-  quantity: number; // Quantidade em estoque
+  quantity: number; // Quantidade em estoque (for recipes, this might be calculated)
   unitOfMeasure: UnitOfMeasure; // Unidade de medida
+  recipeId?: string; // Optional: Link to the Recipe ID if this product is generated from a recipe
 };
