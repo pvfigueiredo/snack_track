@@ -34,16 +34,20 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const router = useRouter();
   const pathname = usePathname();
 
-  // Check local storage or session for existing auth state on mount
+  // Check local storage or session for existing auth state on mount (client-side only)
   useEffect(() => {
     // Simulate checking authentication status (e.g., token in localStorage)
     const checkAuthStatus = async () => {
-      setIsLoading(true);
+      setIsLoading(true); // Ensure loading is true at the start of the check
       try {
         // In a real app, you'd validate a token here
         const storedUser = localStorage.getItem('snacktrack_user');
         if (storedUser) {
           setUser(JSON.parse(storedUser));
+          // If user is found and on login page, redirect to home
+          if (pathname === '/login') {
+            router.push('/');
+          }
         } else {
             setUser(null);
             // Redirect to login if not authenticated and not on login page
@@ -58,14 +62,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             router.push('/login');
          }
       } finally {
-        // Delay setting loading to false slightly to avoid flickering on fast loads
-        setTimeout(() => setIsLoading(false), 300);
+        // Set loading to false after the check is complete
+        setIsLoading(false);
       }
     };
 
     checkAuthStatus();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pathname]); // Rerun on path change to handle redirects correctly
+  }, [pathname, router]); // Add router to dependency array
 
 
   const login = async (username: string, password: string): Promise<void> => {
@@ -84,9 +88,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   const logout = () => {
+    setIsLoading(true); // Set loading while logging out
     setUser(null);
     localStorage.removeItem('snacktrack_user'); // Clear persisted user
     router.push('/login'); // Redirect to login page after logout
+    // Set loading false slightly after push to ensure redirect starts
+    setTimeout(() => setIsLoading(false), 50);
   };
 
    // Use useMemo to prevent unnecessary re-renders of consumers
@@ -97,8 +104,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     logout,
    }), [user, isLoading]); // Only update context value when user or isLoading changes
 
-  // Render a loading indicator or skeleton while checking auth status
-  if (isLoading && typeof window !== 'undefined' && pathname !== '/login') {
+  // Render a loading indicator or skeleton while checking auth status, but only on the client
+  // and not on the login page itself.
+  if (isLoading && pathname !== '/login') {
     // Basic full-page loading skeleton
      return (
       <div className="flex flex-col min-h-screen">
