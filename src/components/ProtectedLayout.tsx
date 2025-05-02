@@ -60,6 +60,9 @@ const ProtectedLayout: React.FC<ProtectedLayoutProps> = ({ children }) => {
                     <Link href="/produtos" className={`transition-colors hover:text-foreground/80 ${pathname === '/produtos' ? 'text-foreground' : 'text-foreground/60'}`}>
                         Produtos
                     </Link>
+                     <Link href="/insumos" className={`transition-colors hover:text-foreground/80 ${pathname === '/insumos' ? 'text-foreground' : 'text-foreground/60'}`}> {/* Added Insumos link */}
+                        Insumos
+                    </Link>
                      <Link href="/relatorios" className={`transition-colors hover:text-foreground/80 ${pathname === '/relatorios' ? 'text-foreground' : 'text-foreground/60'}`}>
                         Relatórios
                     </Link>

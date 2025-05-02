@@ -2,10 +2,12 @@
 import type { Product } from '@/types/product';
 import type { Table } from '@/types/table'; // Import Table type
 import type { Sale } from '@/types/sale'; // Import Sale type
+import type { Insumo } from '@/types/insumo'; // Import Insumo type
 
 const PRODUCTS_STORAGE_KEY = 'snacktrack_products';
 const TABLES_STORAGE_KEY = 'snacktrack_tables'; // Key for tables
 const SALES_HISTORY_STORAGE_KEY = 'snacktrack_sales_history'; // Key for sales history
+const INSUMOS_STORAGE_KEY = 'snacktrack_insumos'; // Key for insumos
 
 // Helper function to safely access localStorage
 const getLocalStorage = (): Storage | null => {
@@ -117,6 +119,38 @@ export const loadSalesHistoryFromStorage = (): Sale[] => {
     } catch (error) {
       console.error("Erro ao carregar histórico de vendas do localStorage:", error);
       // storage.removeItem(SALES_HISTORY_STORAGE_KEY); // Handle potential corruption
+    }
+  }
+  return []; // Return empty array if storage is unavailable or data is invalid/missing
+};
+
+// --- Insumo Storage ---
+export const saveInsumosToStorage = (insumos: Insumo[]): void => {
+  const storage = getLocalStorage();
+  if (storage) {
+    try {
+      storage.setItem(INSUMOS_STORAGE_KEY, JSON.stringify(insumos));
+    } catch (error) {
+      console.error("Erro ao salvar insumos no localStorage:", error);
+    }
+  }
+};
+
+export const loadInsumosFromStorage = (): Insumo[] => {
+  const storage = getLocalStorage();
+  if (storage) {
+    try {
+      const storedInsumos = storage.getItem(INSUMOS_STORAGE_KEY);
+      if (storedInsumos) {
+        const parsedData = JSON.parse(storedInsumos);
+        if (Array.isArray(parsedData)) {
+          // Basic validation, could add more checks for insumo structure
+          return parsedData as Insumo[];
+        }
+      }
+    } catch (error) {
+      console.error("Erro ao carregar insumos do localStorage:", error);
+      // storage.removeItem(INSUMOS_STORAGE_KEY); // Handle potential corruption
     }
   }
   return []; // Return empty array if storage is unavailable or data is invalid/missing
