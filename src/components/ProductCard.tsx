@@ -1,3 +1,4 @@
+
 'use client';
 
 import React from 'react';
@@ -5,17 +6,18 @@ import type { Product } from '@/types/product';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { PackageSearch, AlertTriangle } from 'lucide-react'; // Default icon, Low stock icon
+import { formatCurrency } from '@/lib/dateUtils'; // Import formatCurrency
 
 interface ProductCardProps {
   product: Product;
   onAddToCart: (product: Product) => void;
 }
 
-// Format currency (Client-side only)
-const formatCurrency = (value: number | undefined | null) => {
-    if (typeof value !== 'number' || typeof window === 'undefined') return ''; // Avoid server-side errors
-    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
-}
+// Format currency (Client-side only) - Now imported
+// const formatCurrency = (value: number | undefined | null) => {
+//     if (typeof value !== 'number' || typeof window === 'undefined') return ''; // Avoid server-side errors
+//     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
+// }
 
 export const ProductCard: React.FC<ProductCardProps> = ({ product, onAddToCart }) => {
   const isOutOfStock = product.quantity <= 0;

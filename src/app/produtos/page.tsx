@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState } from 'react';
@@ -18,6 +19,7 @@ import { useToast } from "@/hooks/use-toast";
 import { PlusCircle, Edit, Trash2, PackageSearch, AlertCircle } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { formatCurrency } from '@/lib/dateUtils'; // Import formatCurrency
 
 
 // Helper function to parse currency string (allows comma or dot)
@@ -168,11 +170,11 @@ export default function ProdutosPage() {
     }
   };
 
-  // Format currency (Client-side only)
-  const formatCurrency = (value: number | undefined | null): string => {
-    if (typeof value !== 'number' || typeof window === 'undefined') return ''; // Avoid server-side errors & handle undefined/null
-    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
-  }
+  // Format currency (Client-side only) - Now imported
+  // const formatCurrency = (value: number | undefined | null): string => {
+  //   if (typeof value !== 'number' || typeof window === 'undefined') return ''; // Avoid server-side errors & handle undefined/null
+  //   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
+  // }
 
   // Handle potential low stock (example threshold: 5)
   const isLowStock = (quantity: number, threshold: number = 5): boolean => {

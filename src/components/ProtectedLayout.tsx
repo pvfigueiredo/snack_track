@@ -5,7 +5,7 @@ import React, { useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouter, usePathname } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { LogOut } from 'lucide-react';
+import { LogOut, Utensils } from 'lucide-react'; // Import Utensils
 import Link from 'next/link';
 
 interface ProtectedLayoutProps {
@@ -48,18 +48,20 @@ const ProtectedLayout: React.FC<ProtectedLayoutProps> = ({ children }) => {
             <div className="container flex h-14 items-center">
                 {/* Logo/Brand link remains */}
                  <Link href="/" className="mr-6 flex items-center space-x-2">
-                     {/* Placeholder for Utensils icon if needed */}
-                     {/* <Utensils className="h-6 w-6 text-primary"/> */}
-                     {/* <span className="font-bold text-primary">SnackTrack</span> */}
+                      <Utensils className="h-6 w-6 text-primary"/>
+                      <span className="font-bold text-primary">SnackTrack</span>
                  </Link>
 
                  {/* Navigation Links for Authenticated Users */}
                  <nav className="flex items-center space-x-6 text-sm font-medium flex-grow">
-                    <Link href="/vendas" className="text-foreground/60 transition-colors hover:text-foreground/80">
-                    Mesas
+                    <Link href="/vendas" className={`transition-colors hover:text-foreground/80 ${pathname?.startsWith('/vendas') ? 'text-foreground' : 'text-foreground/60'}`}>
+                        Mesas
                     </Link>
-                    <Link href="/produtos" className="text-foreground/60 transition-colors hover:text-foreground/80">
-                    Produtos
+                    <Link href="/produtos" className={`transition-colors hover:text-foreground/80 ${pathname === '/produtos' ? 'text-foreground' : 'text-foreground/60'}`}>
+                        Produtos
+                    </Link>
+                     <Link href="/relatorios" className={`transition-colors hover:text-foreground/80 ${pathname === '/relatorios' ? 'text-foreground' : 'text-foreground/60'}`}>
+                        Relatórios
                     </Link>
                     {/* Add other navigation links if needed */}
                 </nav>

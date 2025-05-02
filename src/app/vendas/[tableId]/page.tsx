@@ -5,6 +5,7 @@ import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useProducts } from '@/hooks/useProducts';
 import { useTables } from '@/hooks/useTables';
+import { useSalesHistory } from '@/hooks/useSalesHistory'; // Import useSalesHistory
 import type { Product } from '@/types/product';
 import type { CartItem, Table } from '@/types/table';
 import { ProductCard } from '@/components/ProductCard';
@@ -17,6 +18,7 @@ import { AutocompleteInput } from '@/components/AutocompleteInput';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from "@/hooks/use-toast";
 import Link from 'next/link'; // Import Link
+import { formatCurrency } from '@/lib/dateUtils'; // Import formatCurrency
 
 
 export default function TableOrderPage() {
@@ -26,6 +28,7 @@ export default function TableOrderPage() {
 
   const { products: allProducts, isLoading: isLoadingProducts, updateProduct: decreaseStock } = useProducts(); // Use updateProduct for stock
   const { tables, getTableById, addItemToTableOrder, removeItemFromTableOrder, clearTableOrder, isLoading: isLoadingTables } = useTables();
+  const { addSale } = useSalesHistory(); // Get addSale function from the hook
   const { toast } = useToast();
 
   const [searchTerm, setSearchTerm] = useState('');
@@ -145,14 +148,15 @@ export default function TableOrderPage() {
   }, [addToCart]);
 
 
-  const formatCurrency = (value: number | undefined | null) => {
-    if (typeof value !== 'number' || typeof window === 'undefined') return '';
-    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
-  }
+  // const formatCurrency = (value: number | undefined | null) => {
+  //   if (typeof value !== 'number' || typeof window === 'undefined') return '';
+  //   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
+  // } // Using formatCurrency from dateUtils
 
    const finalizeSale = async () => {
         if (!currentTable || cart.length === 0) return;
         setIsFinalizing(true);
+        const saleTotal = calculateTotal; // Store total before potential cart modifications
 
         try {
             // Simulate stock reduction - In a real app, this might be an API call
@@ -180,14 +184,19 @@ export default function TableOrderPage() {
             }
 
             if (stockSufficient) {
-                // Perform stock updates (replace with your actual update logic)
-                // This is a simplified example; consider batch updates or transactions
-                 stockUpdates.forEach(updatedProd => decreaseStock(updatedProd));
+                // Perform stock updates
+                stockUpdates.forEach(updatedProd => decreaseStock(updatedProd));
 
+                // Add sale to history
+                addSale({
+                    tableNumber: currentTable.number,
+                    items: [...cart], // Add a copy of the cart items
+                    totalAmount: saleTotal
+                });
 
                 toast({
                     title: "Venda Finalizada!",
-                    description: `Mesa ${currentTable.number} | Total: ${formatCurrency(calculateTotal)}`,
+                    description: `Mesa ${currentTable.number} | Total: ${formatCurrency(saleTotal)}`,
                     duration: 5000,
                     className: "bg-accent text-accent-foreground border-accent", // Success style
                 });
