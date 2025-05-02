@@ -73,9 +73,10 @@ export default function SalesReportPage() {
                         ) : (
                             <div className="text-2xl font-bold">{formatCurrency(totalSalesAmount)}</div>
                         )}
-                         <p className="text-xs text-muted-foreground">
-                            {isLoading ? <Skeleton className="h-3 w-24 mt-1" /> : `Total de ${filteredSales.length} vendas no período`}
-                        </p>
+                         {/* Changed p to div to avoid hydration error */}
+                         <div className="text-xs text-muted-foreground mt-1">
+                            {isLoading ? <Skeleton className="h-3 w-24" /> : `Total de ${filteredSales.length} vendas no período`}
+                        </div>
                     </CardContent>
                 </Card>
 
