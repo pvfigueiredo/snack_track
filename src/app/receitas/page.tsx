@@ -1,7 +1,7 @@
 
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { useRecipes } from '@/hooks/useRecipes';
 import { useInsumos } from '@/hooks/useInsumos';
 import { type Recipe, type RecipeIngredient } from '@/types/recipe';
@@ -35,6 +35,13 @@ const parseCurrency = (val: unknown): number | undefined => {
   return undefined;
 };
 
+// Helper function to parse positive number (allows decimals)
+const parsePositiveNumber = (val: unknown): number | undefined => {
+    const num = parseFloat(String(val).replace(',', '.')); // Allow comma as decimal separator
+    return isNaN(num) || num <= 0 ? undefined : num;
+};
+
+
 // Helper function to parse positive integer
 const parsePositiveInt = (val: unknown): number | undefined => {
     const num = parseInt(String(val), 10);
@@ -45,8 +52,8 @@ const parsePositiveInt = (val: unknown): number | undefined => {
 const recipeIngredientSchema = z.object({
   insumoId: z.string().min(1, { message: "Selecione um insumo" }),
   quantity: z.preprocess(
-    parsePositiveInt,
-    z.number({ invalid_type_error: "Quantidade deve ser um número" }).int().positive({ message: "Quantidade deve ser maior que zero" })
+    parsePositiveNumber, // Use the new helper for decimals
+    z.number({ invalid_type_error: "Quantidade deve ser um número" }).positive({ message: "Quantidade deve ser maior que zero" })
   ),
 });
 
@@ -113,6 +120,11 @@ export default function ReceitasPage() {
         ...data,
         yieldUnit: 'UN' as const, // Ensure yieldUnit is added
         batchesMade: editingRecipe ? editingRecipe.batchesMade : 0, // Preserve batchesMade if editing
+        // Ensure ingredients quantity is a number
+        ingredients: data.ingredients.map(ing => ({
+            ...ing,
+            quantity: typeof ing.quantity === 'string' ? parseFloat(ing.quantity.replace(',', '.')) : ing.quantity
+        }))
     };
 
 
@@ -250,14 +262,26 @@ export default function ReceitasPage() {
   // Calculate total cost for display
   const calculateDisplayCost = (ingredients: RecipeIngredient[]) => {
       if (!ingredients || ingredients.length === 0) return 0;
-      return calculateRecipePurchasePrice(ingredients);
+      // Ensure quantities are numbers before calculating
+      const validIngredients = ingredients
+          .map(ing => ({ ...ing, quantity: typeof ing.quantity === 'string' ? parseFloat(ing.quantity.replace(',', '.')) : ing.quantity }))
+          .filter(ing => ing.insumoId && !isNaN(ing.quantity) && ing.quantity > 0);
+      return calculateRecipePurchasePrice(validIngredients);
   };
 
+
   // Watch ingredients changes to update cost display in the form
-  const watchedIngredients = form.watch('ingredients');
-  const currentFormCost = useMemo(() => calculateDisplayCost(watchedIngredients), [watchedIngredients, calculateDisplayCost]);
-  const currentYield = form.watch('yieldAmount') || 1;
-  const costPerUnit = currentYield > 0 ? currentFormCost / currentYield : 0;
+    const watchedIngredients = form.watch('ingredients');
+    const [currentFormCost, setCurrentFormCost] = useState(0);
+    const [costPerUnit, setCostPerUnit] = useState(0);
+    const currentYield = form.watch('yieldAmount') || 1;
+
+    useEffect(() => {
+        const calculatedCost = calculateDisplayCost(watchedIngredients);
+        setCurrentFormCost(calculatedCost);
+        setCostPerUnit(currentYield > 0 ? calculatedCost / currentYield : 0);
+    }, [watchedIngredients, currentYield, calculateDisplayCost]);
+
 
   return (
      <TooltipProvider>
@@ -330,7 +354,12 @@ export default function ReceitasPage() {
                                 <FormLabel>Rendimento (Unidades)</FormLabel>
                                 <FormControl>
                                     <Input type="number" {...field} placeholder="Ex: 10" min="1" step="1"
-                                    onChange={(e) => field.onChange(parseInt(e.target.value, 10) || 1)} // Ensure positive integer
+                                    onChange={(e) => {
+                                        const value = parseInt(e.target.value, 10) || 1;
+                                        field.onChange(value);
+                                        const calculatedCost = calculateDisplayCost(form.getValues('ingredients'));
+                                        setCostPerUnit(value > 0 ? calculatedCost / value : 0);
+                                    }}
                                     value={field.value ?? 1}
                                     />
                                 </FormControl>
@@ -356,9 +385,9 @@ export default function ReceitasPage() {
                                         value = value.replace(/,{2,}/g, ',');
                                         const parts = value.split(',');
                                         if (parts.length > 2) value = parts[0] + ',' + parts.slice(1).join('');
-                                        field.onChange(value);
+                                        field.onChange(value); // Keep as string with comma for display
                                     }}
-                                    value={field.value === undefined ? '' : String(field.value).replace('.',',')}
+                                     value={field.value === undefined ? '' : String(field.value).replace('.', ',')} // Format display value
                                     />
                                 </FormControl>
                                 <FormMessage />
@@ -408,9 +437,19 @@ export default function ReceitasPage() {
                                             <FormItem>
                                                 <FormLabel>Quantidade</FormLabel>
                                                 <FormControl>
-                                                     <Input type="number" {...field} placeholder="Ex: 2" min="0.01" step="any" // Allow decimals
-                                                        onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
-                                                        value={field.value ?? 0}
+                                                     <Input type="text" // Use text to allow comma
+                                                        {...field}
+                                                        placeholder="Ex: 0,5 ou 2"
+                                                         onChange={(e) => {
+                                                            let value = e.target.value;
+                                                            // Allow numbers and one comma
+                                                            value = value.replace(/[^0-9,]/g, '');
+                                                            // Ensure only one comma exists
+                                                            const parts = value.split(',');
+                                                            if (parts.length > 2) value = parts[0] + ',' + parts.slice(1).join('');
+                                                            field.onChange(value); // Store value with comma
+                                                        }}
+                                                        value={String(field.value ?? '').replace('.', ',')} // Display value with comma
                                                     />
                                                 </FormControl>
                                                 <FormMessage />
@@ -629,3 +668,4 @@ export default function ReceitasPage() {
     </TooltipProvider>
   );
 }
+
