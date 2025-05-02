@@ -3,13 +3,13 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import { useProducts } from '@/hooks/useProducts';
 import type { Product } from '@/types/product';
-import { ProductCard } from '@/components/ProductCard';
+import { ProductCard } from '@/components/ProductCard'; // Adjust ProductCard if needed
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
-import { X, ShoppingCart, Search, Trash2 } from 'lucide-react';
+import { X, ShoppingCart, Search, Trash2, PackageSearch } from 'lucide-react'; // Keep PackageSearch as fallback
 import { AutocompleteInput } from '@/components/AutocompleteInput';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from "@/hooks/use-toast";
@@ -25,8 +25,30 @@ export default function VendasPage() {
 
 
   const addToCart = useCallback((product: Product) => {
+     if (product.quantity <= 0) {
+      toast({
+        title: "Produto indisponível",
+        description: `${product.name} está fora de estoque.`,
+        variant: "destructive",
+      });
+      return;
+    }
+
     setCart((prevCart) => {
       const existingItem = prevCart.find((item) => item.id === product.id);
+       const currentCartQuantity = existingItem ? existingItem.quantity : 0;
+
+        // Check if adding exceeds stock
+        if (currentCartQuantity + 1 > product.quantity) {
+            toast({
+                title: "Limite de estoque atingido",
+                description: `Você não pode adicionar mais ${product.name} (Estoque: ${product.quantity}).`,
+                variant: "destructive",
+            });
+            return prevCart; // Return previous cart without changes
+        }
+
+
       if (existingItem) {
         return prevCart.map((item) =>
           item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item
@@ -71,10 +93,11 @@ export default function VendasPage() {
   };
 
   const calculateTotal = useMemo(() => {
-    return cart.reduce((total, item) => total + item.price * item.quantity, 0);
+    // Use salePrice for total calculation
+    return cart.reduce((total, item) => total + item.salePrice * item.quantity, 0);
   }, [cart]);
 
-  // Filter products based on search term (for grid display)
+  // Filter products based on search term (name or code)
   const filteredProducts = useMemo(() => {
     if (!searchTerm) {
       return allProducts;
@@ -82,25 +105,24 @@ export default function VendasPage() {
     const lowerCaseSearchTerm = searchTerm.toLowerCase();
     return allProducts.filter((product) =>
       product.name.toLowerCase().includes(lowerCaseSearchTerm) ||
-      product.description?.toLowerCase().includes(lowerCaseSearchTerm)
+      product.code.toLowerCase().includes(lowerCaseSearchTerm)
     );
   }, [allProducts, searchTerm]);
 
-   // Filter function for Autocomplete
+   // Filter function for Autocomplete (name or code)
   const autocompleteFilter = useCallback((product: Product, query: string): boolean => {
     const lowerCaseQuery = query.toLowerCase();
     return product.name.toLowerCase().includes(lowerCaseQuery) ||
-           (product.description && product.description.toLowerCase().includes(lowerCaseQuery));
+           product.code.toLowerCase().includes(lowerCaseQuery);
   }, []);
 
   // Render suggestion for Autocomplete
   const renderAutocompleteSuggestion = useCallback((product: Product): React.ReactNode => {
-    const Icon = product.icon;
     return (
       <div className="flex items-center gap-2">
-        {Icon && <Icon className="h-4 w-4 text-muted-foreground" />}
-        <span>{product.name}</span>
-        <span className="ml-auto text-xs text-muted-foreground">{formatCurrency(product.price)}</span>
+         <PackageSearch className="h-4 w-4 text-muted-foreground" /> {/* Default icon */}
+         <span>{product.name} ({product.code})</span>
+        <span className="ml-auto text-xs text-muted-foreground">{formatCurrency(product.salePrice)}</span>
       </div>
     );
   }, []);
@@ -113,19 +135,44 @@ export default function VendasPage() {
 
 
   // Format currency (Client-side only)
-  const formatCurrency = (value: number) => {
-    if (typeof window === 'undefined') return ''; // Avoid server-side errors
+  const formatCurrency = (value: number | undefined | null) => {
+    if (typeof value !== 'number' || typeof window === 'undefined') return ''; // Avoid server-side errors & handle undefined/null
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
   }
 
   const finalizeSale = () => {
-      // In a real app, this would involve processing payment, updating inventory, etc.
-      toast({
-          title: "Venda Finalizada!",
-          description: `Total: ${formatCurrency(calculateTotal)}`,
-          duration: 5000, // Show for longer
-      });
-      clearCart(); // Clear the cart after successful sale
+      // TODO: Implement stock reduction logic here
+      // 1. Iterate through the cart
+      // 2. For each item, call updateProduct to decrease the quantity in the main product list
+      //    Ensure sufficient stock before proceeding. If not, show an error and stop.
+      // 3. If all stock updates are successful, proceed with the toast and clearing the cart.
+
+      // Example (needs proper error handling and potentially making updates atomic):
+      // try {
+      //   for (const item of cart) {
+      //     const productToUpdate = allProducts.find(p => p.id === item.id);
+      //     if (!productToUpdate || productToUpdate.quantity < item.quantity) {
+      //       throw new Error(`Estoque insuficiente para ${item.name}`);
+      //     }
+      //     updateProduct({ ...productToUpdate, quantity: productToUpdate.quantity - item.quantity });
+      //   }
+
+          toast({
+              title: "Venda Finalizada!",
+              description: `Total: ${formatCurrency(calculateTotal)}`,
+              duration: 5000, // Show for longer
+          });
+          clearCart(); // Clear the cart after successful sale simulation
+
+      // } catch (error: any) {
+      //    console.error("Erro ao finalizar venda:", error);
+      //    toast({
+      //        title: "Erro na Venda!",
+      //        description: error.message || "Não foi possível finalizar a venda devido a problemas de estoque.",
+      //        variant: "destructive",
+      //    });
+      //    // Do NOT clear the cart if the sale failed
+      // }
   }
 
 
@@ -137,13 +184,13 @@ export default function VendasPage() {
              <Search className="text-muted-foreground" />
              {/* Autocomplete Input */}
              <AutocompleteInput<Product>
-                items={allProducts}
+                items={allProducts.filter(p => p.quantity > 0)} // Only suggest items in stock
                 filterFn={autocompleteFilter}
                 renderSuggestion={renderAutocompleteSuggestion}
                 onSelect={handleAutocompleteSelect}
-                placeholder="Buscar produto..."
+                placeholder="Buscar por nome ou código..." // Updated placeholder
                 inputClassName="text-lg"
-                labelKey="name"
+                labelKey="name" // Keep name for display after selection, or change if needed
                 value={searchTerm} // Control the input value
                 onChange={setSearchTerm} // Update search term for grid filtering as well
             />
@@ -154,26 +201,39 @@ export default function VendasPage() {
           {isLoadingProducts ? (
              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
                 {Array.from({ length: 10 }).map((_, index) => (
-                     <Card key={`skel-${index}`} className="p-4 h-64 flex flex-col items-center justify-between">
-                        <Skeleton className="h-16 w-16 rounded-full mb-2"/>
+                     <Card key={`skel-${index}`} className="p-4 h-52 flex flex-col items-center justify-between"> {/* Adjusted height */}
+                        <Skeleton className="h-12 w-12 rounded-md mb-2"/> {/* Default icon placeholder */}
                         <Skeleton className="h-5 w-3/4 mb-1"/>
-                        <Skeleton className="h-4 w-1/2 mb-4"/>
-                        <Skeleton className="h-6 w-16 mb-2"/>
+                        <Skeleton className="h-4 w-1/2 mb-2"/> {/* Remove description skeleton */}
+                        <Skeleton className="h-6 w-16 mb-2"/> {/* Price skeleton */}
                         <Skeleton className="h-10 w-full"/>
                      </Card>
                  ))}
              </div>
           ) : filteredProducts.length > 0 ? (
              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-                {filteredProducts.map((product) => (
+                 {/* Only show products with quantity > 0 */}
+                {filteredProducts.filter(p => p.quantity > 0).map((product) => (
                   <ProductCard key={product.id} product={product} onAddToCart={addToCart} />
                 ))}
              </div>
           ) : (
              <div className="flex items-center justify-center h-full text-muted-foreground">
-                 Nenhum produto encontrado {searchTerm && `para "${searchTerm}"`}.
+                 {allProducts.length === 0 ? 'Nenhum produto cadastrado.' : (searchTerm ? `Nenhum produto encontrado para "${searchTerm}".` : 'Nenhum produto em estoque.')}
              </div>
           )}
+           {/* Optionally show out-of-stock items separately or greyed out */}
+           {filteredProducts.filter(p => p.quantity <= 0).length > 0 && (
+             <div className="mt-6 opacity-50">
+               <Separator />
+                <h3 className="text-sm text-muted-foreground my-2 px-1">Fora de estoque</h3>
+                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+                     {filteredProducts.filter(p => p.quantity <= 0).map((product) => (
+                         <ProductCard key={product.id} product={product} onAddToCart={addToCart} />
+                     ))}
+                 </div>
+             </div>
+            )}
         </ScrollArea>
       </div>
 
@@ -199,16 +259,17 @@ export default function VendasPage() {
                 {cart.map((item) => (
                   <div key={item.id} className="flex items-center justify-between gap-4">
                     <div className="flex items-center gap-3 flex-1 min-w-0">
-                       {item.icon && <item.icon className="h-5 w-5 text-primary flex-shrink-0" />}
+                       <PackageSearch className="h-5 w-5 text-primary flex-shrink-0" /> {/* Default icon */}
                       <div className="flex-1 min-w-0">
                         <p className="font-medium truncate" title={item.name}>{item.name}</p>
                         <p className="text-sm text-muted-foreground">
-                          {formatCurrency(item.price)} x {item.quantity}
+                          {formatCurrency(item.salePrice)} x {item.quantity}
                         </p>
                       </div>
                     </div>
                     <div className="flex items-center gap-1">
-                       <span className="font-semibold w-16 text-right">{formatCurrency(item.price * item.quantity)}</span>
+                       {/* Use salePrice for item total */}
+                       <span className="font-semibold w-16 text-right">{formatCurrency(item.salePrice * item.quantity)}</span>
                        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => removeFromCart(item.id)}>
                         <X className="h-4 w-4" />
                         <span className="sr-only">Remover item</span>

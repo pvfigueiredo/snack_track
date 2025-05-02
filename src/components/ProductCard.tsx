@@ -4,8 +4,7 @@ import React from 'react';
 import type { Product } from '@/types/product';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import Image from 'next/image';
-import { PackageSearch } from 'lucide-react'; // Default icon
+import { PackageSearch, AlertTriangle } from 'lucide-react'; // Default icon, Low stock icon
 
 interface ProductCardProps {
   product: Product;
@@ -13,47 +12,52 @@ interface ProductCardProps {
 }
 
 // Format currency (Client-side only)
-const formatCurrency = (value: number) => {
-    if (typeof window === 'undefined') return ''; // Avoid server-side errors
+const formatCurrency = (value: number | undefined | null) => {
+    if (typeof value !== 'number' || typeof window === 'undefined') return ''; // Avoid server-side errors
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 }
 
 export const ProductCard: React.FC<ProductCardProps> = ({ product, onAddToCart }) => {
-  const Icon = product.icon || PackageSearch;
+  const isOutOfStock = product.quantity <= 0;
+  const isLowStock = product.quantity > 0 && product.quantity <= 5; // Example threshold
 
   return (
-    <Card className="flex flex-col justify-between items-center p-4 h-full w-full text-center shadow-md hover:shadow-lg transition-shadow cursor-pointer bg-card">
-      <CardHeader className="p-2 w-full">
-        {/* Icon takes precedence, then image, then default */}
-        <div className="flex justify-center items-center h-20 w-full mb-2">
-          {product.icon ? (
-             <Icon className="h-16 w-16 text-primary" />
-          ) : product.imageUrl ? (
-            <Image
-              src={product.imageUrl}
-              alt={product.name}
-              width={80}
-              height={80}
-              className="object-contain"
-              data-ai-hint="product image"
-            />
-          ) : (
-             <PackageSearch className="h-16 w-16 text-muted-foreground" />
-          )}
+    <Card className={`flex flex-col justify-between items-center p-4 h-full w-full text-center shadow-md hover:shadow-lg transition-shadow ${isOutOfStock ? 'opacity-50 bg-muted cursor-not-allowed' : 'cursor-pointer bg-card'}`}>
+      <CardHeader className="p-2 w-full relative">
+         {/* Stock Indicator */}
+        {isOutOfStock && (
+            <div className="absolute top-1 right-1 bg-destructive text-destructive-foreground text-xs font-semibold px-1.5 py-0.5 rounded-full flex items-center gap-1">
+                <AlertTriangle className="h-3 w-3" /> Fora
+            </div>
+        )}
+         {isLowStock && !isOutOfStock && (
+            <div className="absolute top-1 right-1 bg-yellow-500 text-black text-xs font-semibold px-1.5 py-0.5 rounded-full flex items-center gap-1">
+                <AlertTriangle className="h-3 w-3" /> Baixo ({product.quantity})
+            </div>
+        )}
+
+        {/* Default Icon */}
+        <div className="flex justify-center items-center h-16 w-full mb-2"> {/* Reduced height */}
+           <PackageSearch className={`h-12 w-12 ${isOutOfStock ? 'text-muted-foreground' : 'text-primary'}`} />
         </div>
-        <CardTitle className="text-lg font-semibold truncate w-full" title={product.name}>{product.name}</CardTitle>
+        <CardTitle className="text-base font-semibold truncate w-full pt-1" title={product.name}>
+            {product.name}
+        </CardTitle>
+         <p className="text-xs text-muted-foreground">({product.code})</p> {/* Display code */}
       </CardHeader>
-      <CardContent className="p-2 flex-grow w-full">
-        <p className="text-muted-foreground text-sm truncate" title={product.description}>{product.description || ''}</p>
-      </CardContent>
+       <CardContent className="p-1 flex-grow w-full">
+         {/* Removed description */}
+       </CardContent>
       <CardFooter className="p-2 mt-auto w-full flex flex-col items-center space-y-2">
-        <span className="text-xl font-bold text-primary">{formatCurrency(product.price)}</span>
+         {/* Use salePrice */}
+        <span className={`text-lg font-bold ${isOutOfStock ? 'text-muted-foreground' : 'text-primary'}`}>{formatCurrency(product.salePrice)}</span>
         <Button
-          onClick={() => onAddToCart(product)}
-          className="w-full bg-accent hover:bg-accent/90 text-accent-foreground"
-          aria-label={`Adicionar ${product.name} ao carrinho`}
+          onClick={() => !isOutOfStock && onAddToCart(product)} // Prevent adding if out of stock
+          className={`w-full text-accent-foreground ${isOutOfStock ? 'bg-muted hover:bg-muted cursor-not-allowed' : 'bg-accent hover:bg-accent/90'}`}
+          aria-label={isOutOfStock ? `${product.name} fora de estoque` : `Adicionar ${product.name} ao carrinho`}
+          disabled={isOutOfStock}
         >
-          Adicionar
+          {isOutOfStock ? 'Indisponível' : 'Adicionar'}
         </Button>
       </CardFooter>
     </Card>
