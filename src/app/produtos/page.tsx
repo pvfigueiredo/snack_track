@@ -1,8 +1,9 @@
 
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useProducts } from '@/hooks/useProducts';
+import { useRecipes } from '@/hooks/useRecipes'; // Import useRecipes
 import { type Product, unitsOfMeasure, type UnitOfMeasure } from '@/types/product';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -16,7 +17,7 @@ import * as z from 'zod';
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { PlusCircle, Edit, Trash2, PackageSearch, AlertCircle } from 'lucide-react';
+import { PlusCircle, Edit, Trash2, PackageSearch, AlertCircle, Info, BookCopy } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { formatCurrency } from '@/lib/dateUtils'; // Import formatCurrency
@@ -33,17 +34,17 @@ const parseCurrency = (val: unknown): number | undefined => {
   return undefined;
 };
 
-// Schema for form validation
+// Schema for form validation (only for non-recipe products)
 const productSchema = z.object({
   code: z.string().min(1, { message: "Código é obrigatório" }),
   name: z.string().min(1, { message: "Nome é obrigatório" }),
   purchasePrice: z.preprocess(
     parseCurrency,
-    z.number({ invalid_type_error: "Valor deve ser um número" }).positive({ message: "Valor de compra deve ser positivo" }).optional().or(z.literal(0)) // Allow 0 or positive
+    z.number({ invalid_type_error: "Valor deve ser um número" }).nonnegative({ message: "Valor de compra não pode ser negativo" }).optional().or(z.literal(0)) // Allow 0 or non-negative
   ),
   salePrice: z.preprocess(
     parseCurrency,
-    z.number({ invalid_type_error: "Valor deve ser um número" }).positive({ message: "Valor de venda deve ser positivo" }).optional().or(z.literal(0)) // Allow 0 or positive
+    z.number({ invalid_type_error: "Valor deve ser um número" }).positive({ message: "Valor de venda deve ser positivo" }) // Sale price must be positive
   ),
   quantity: z.preprocess(
     (val) => {
@@ -58,11 +59,14 @@ const productSchema = z.object({
 type ProductFormData = z.infer<typeof productSchema>;
 
 export default function ProdutosPage() {
-  const { products, addProduct, updateProduct, deleteProduct, isLoading, getProductByCode } = useProducts();
+  const { products, addProduct, updateProduct, deleteProduct, isLoading: isLoadingProductsHook, getProductByCode } = useProducts();
+  const { recipes, isLoading: isLoadingRecipes, getRecipeByCode: getRecipeDataByCode } = useRecipes(); // Use useRecipes hook
   const { toast } = useToast();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [errorCode, setErrorCode] = useState<string | null>(null); // State for code validation error
+
+  const isLoading = isLoadingProductsHook || isLoadingRecipes; // Combine loading states
 
   const form = useForm<ProductFormData>({
     resolver: zodResolver(productSchema),
@@ -77,24 +81,44 @@ export default function ProdutosPage() {
   });
 
    const onSubmit: SubmitHandler<ProductFormData> = (data) => {
-    // Additional check for code uniqueness before submitting to the hook
+    // Check code uniqueness against both products and recipes
     const existingProductWithCode = getProductByCode(data.code);
+     const existingRecipeWithCode = getRecipeDataByCode(data.code);
+
     if (existingProductWithCode && (!editingProduct || editingProduct.id !== existingProductWithCode.id)) {
-      setErrorCode('Código de produto já existe.');
-      form.setError('code', { type: 'manual', message: 'Código de produto já existe.' });
-      return; // Prevent submission
+        setErrorCode('Código de produto já existe.');
+        form.setError('code', { type: 'manual', message: 'Código de produto já existe.' });
+        return;
     }
+     if (existingRecipeWithCode && (!editingProduct || editingProduct.recipeId !== existingRecipeWithCode.id)) {
+        // Allow editing if the product being edited IS the one derived from the recipe
+         setErrorCode('Código já existe em uma receita.');
+        form.setError('code', { type: 'manual', message: 'Código já existe em uma receita.' });
+        return;
+     }
+
     setErrorCode(null); // Clear error if validation passes
 
     try {
         if (editingProduct) {
           // Ensure the ID is included when updating
+          // Prevent editing fields that are managed by the recipe
+          if (editingProduct.recipeId) {
+             toast({
+                 title: "Aviso",
+                 description: "Produtos derivados de receita devem ser editados na tela de Receitas.",
+                 variant: "default", // Use default variant for info
+             });
+             closeDialog();
+             return;
+          }
           updateProduct({ ...editingProduct, ...data });
           toast({
             title: "Sucesso!",
             description: "Produto atualizado com sucesso.",
           });
         } else {
+          // Add new product (can't add recipe-derived products here)
           addProduct(data);
           toast({
             title: "Sucesso!",
@@ -110,7 +134,7 @@ export default function ProdutosPage() {
             variant: "destructive",
         });
         // If error is about code uniqueness, set it in the form
-        if (error.message && error.message.includes('Código de produto')) {
+        if (error.message && error.message.toLowerCase().includes('código')) {
              setErrorCode(error.message);
              form.setError('code', { type: 'manual', message: error.message });
         }
@@ -119,6 +143,13 @@ export default function ProdutosPage() {
 
 
   const openEditDialog = (product: Product) => {
+     if (product.recipeId) {
+         toast({
+             title: "Aviso",
+             description: "Produtos derivados de receita são gerenciados na tela de Receitas.",
+         });
+         return; // Don't open dialog for recipe products
+     }
     setEditingProduct(product);
     setErrorCode(null); // Clear code error when opening edit
     form.reset({
@@ -153,28 +184,33 @@ export default function ProdutosPage() {
     form.reset(); // Reset form fields and errors
   };
 
-  const handleDelete = (productId: string) => {
-    try {
-        deleteProduct(productId);
-        toast({
-            title: "Sucesso!",
-            description: "Produto excluído com sucesso.",
-        });
-    } catch(error){
-         console.error("Erro ao excluir produto:", error);
-         toast({
-            title: "Erro!",
-            description: "Não foi possível excluir o produto. Tente novamente.",
-            variant: "destructive",
-        });
+  const handleDelete = (productId: string, productName: string, recipeId?: string) => {
+     if (recipeId) {
+          toast({
+             title: "Aviso",
+             description: "Produtos derivados de receita são excluídos ao excluir a receita.",
+         });
+         return;
+     }
+    // Add confirmation dialog
+    if (confirm(`Tem certeza que deseja excluir o produto "${productName}"? Esta ação não pode ser desfeita.`)) {
+        try {
+            deleteProduct(productId);
+            toast({
+                title: "Sucesso!",
+                description: "Produto excluído com sucesso.",
+                 variant: "destructive",
+            });
+        } catch(error: any){
+             console.error("Erro ao excluir produto:", error);
+             toast({
+                title: "Erro!",
+                description: error.message || "Não foi possível excluir o produto. Tente novamente.",
+                variant: "destructive",
+            });
+        }
     }
   };
-
-  // Format currency (Client-side only) - Now imported
-  // const formatCurrency = (value: number | undefined | null): string => {
-  //   if (typeof value !== 'number' || typeof window === 'undefined') return ''; // Avoid server-side errors & handle undefined/null
-  //   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
-  // }
 
   // Handle potential low stock (example threshold: 5)
   const isLowStock = (quantity: number, threshold: number = 5): boolean => {
@@ -188,18 +224,21 @@ export default function ProdutosPage() {
         <h1 className="text-3xl font-bold">Cadastro de Produtos</h1>
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
-            <Button onClick={openNewDialog} className="bg-accent hover:bg-accent/90">
-              <PlusCircle className="mr-2 h-4 w-4" /> Novo Produto
+            {/* Disable adding new product if loading */}
+            <Button onClick={openNewDialog} className="bg-accent hover:bg-accent/90" disabled={isLoading}>
+              <PlusCircle className="mr-2 h-4 w-4" /> Novo Produto Manual
             </Button>
           </DialogTrigger>
-          <DialogContent className="sm:max-w-md" onInteractOutside={closeDialog}> {/* Adjusted width */}
+          <DialogContent className="sm:max-w-md" onInteractOutside={closeDialog}>
             <DialogHeader>
-              <DialogTitle>{editingProduct ? 'Editar Produto' : 'Novo Produto'}</DialogTitle>
+              <DialogTitle>{editingProduct ? 'Editar Produto Manual' : 'Novo Produto Manual'}</DialogTitle>
               <DialogDescription>
                 {editingProduct ? 'Atualize os detalhes do produto.' : 'Preencha as informações do novo produto.'}
+                 <span className="block text-sm text-blue-600 mt-1 flex items-center gap-1"><Info className="h-4 w-4"/>Produtos derivados de receitas são gerenciados na tela de Receitas.</span>
               </DialogDescription>
             </DialogHeader>
             <Form {...form}>
+                {/* Form only for non-recipe products */}
                 <form onSubmit={form.handleSubmit(onSubmit)} className="grid gap-4 py-4">
                      {/* Code */}
                     <FormField
@@ -346,7 +385,7 @@ export default function ProdutosPage() {
       <Card>
         <CardHeader>
           <CardTitle>Produtos Cadastrados</CardTitle>
-          <CardDescription>Visualize e gerencie os produtos da sua lanchonete.</CardDescription>
+          <CardDescription>Visualize produtos manuais e derivados de receitas.</CardDescription>
         </CardHeader>
         <CardContent>
           <Table>
@@ -354,16 +393,17 @@ export default function ProdutosPage() {
               <TableRow>
                 <TableHead className="w-[120px]">Código</TableHead>
                 <TableHead>Nome</TableHead>
-                <TableHead className="text-right">Vlr. Compra</TableHead>
+                <TableHead className="text-right">Vlr. Compra (Custo/UN)</TableHead>
                 <TableHead className="text-right">Vlr. Venda</TableHead>
                 <TableHead className="text-right">Qtd.</TableHead>
                 <TableHead className="text-right">Un.</TableHead>
+                <TableHead className="text-center w-[50px]">Origem</TableHead>
                 <TableHead className="text-right w-[120px]">Ações</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? (
-                Array.from({ length: 3 }).map((_, index) => (
+                Array.from({ length: 5 }).map((_, index) => (
                   <TableRow key={`skeleton-${index}`}>
                     <TableCell><Skeleton className="h-4 w-20" /></TableCell>
                     <TableCell><Skeleton className="h-4 w-32" /></TableCell>
@@ -371,6 +411,7 @@ export default function ProdutosPage() {
                     <TableCell className="text-right"><Skeleton className="h-4 w-16" /></TableCell>
                      <TableCell className="text-right"><Skeleton className="h-4 w-10" /></TableCell>
                     <TableCell className="text-right"><Skeleton className="h-4 w-8" /></TableCell>
+                    <TableCell className="text-center"><Skeleton className="h-6 w-6 mx-auto" /></TableCell>
                     <TableCell className="text-right flex justify-end space-x-2">
                         <Skeleton className="h-8 w-8" />
                         <Skeleton className="h-8 w-8" />
@@ -379,7 +420,7 @@ export default function ProdutosPage() {
                 ))
               ) : products.length > 0 ? (
                 products.map((product) => (
-                  <TableRow key={product.id}>
+                  <TableRow key={product.id} className={product.recipeId ? 'bg-blue-50 dark:bg-blue-900/20' : ''}>
                     <TableCell className="font-medium">{product.code}</TableCell>
                     <TableCell>{product.name}</TableCell>
                     <TableCell className="text-right">{formatCurrency(product.purchasePrice)}</TableCell>
@@ -399,61 +440,66 @@ export default function ProdutosPage() {
                        ) : product.quantity}
                     </TableCell>
                     <TableCell className="text-right">{product.unitOfMeasure}</TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end space-x-2">
+                     <TableCell className="text-center">
                         <Tooltip>
-                            <TooltipTrigger asChild>
-                                <Button variant="ghost" size="icon" onClick={() => openEditDialog(product)}>
-                                <Edit className="h-4 w-4" />
-                                <span className="sr-only">Editar</span>
-                                </Button>
+                            <TooltipTrigger>
+                                {product.recipeId ? (
+                                     <BookCopy className="h-5 w-5 text-blue-600 mx-auto" />
+                                 ) : (
+                                     <PackageSearch className="h-5 w-5 text-muted-foreground mx-auto" />
+                                 )}
                             </TooltipTrigger>
                             <TooltipContent>
-                                <p>Editar</p>
+                                <p>{product.recipeId ? 'Derivado de Receita' : 'Produto Manual'}</p>
                             </TooltipContent>
+                        </Tooltip>
+                     </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex justify-end space-x-2">
+                        {/* Edit Button - Disabled for recipe products */}
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => openEditDialog(product)}
+                                    disabled={!!product.recipeId} // Disable if recipeId exists
+                                    className={product.recipeId ? "cursor-not-allowed text-muted-foreground" : ""}
+                                >
+                                    <Edit className="h-4 w-4" />
+                                    <span className="sr-only">Editar</span>
+                                </Button>
+                            </TooltipTrigger>
+                             <TooltipContent>
+                                <p>{product.recipeId ? 'Gerenciado em Receitas' : 'Editar Produto'}</p>
+                             </TooltipContent>
                          </Tooltip>
 
-                         {/* Confirmation Dialog for Delete */}
-                         <Dialog>
-                            <DialogTrigger asChild>
-                               <Tooltip>
-                                    <TooltipTrigger asChild>
-                                        <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive">
-                                        <Trash2 className="h-4 w-4" />
-                                        <span className="sr-only">Excluir</span>
-                                        </Button>
-                                    </TooltipTrigger>
-                                    <TooltipContent>
-                                        <p>Excluir</p>
-                                    </TooltipContent>
-                                </Tooltip>
-                            </DialogTrigger>
-                            <DialogContent>
-                                <DialogHeader>
-                                <DialogTitle>Confirmar Exclusão</DialogTitle>
-                                <DialogDescription>
-                                    Tem certeza que deseja excluir o produto "{product.name}" ({product.code})? Esta ação não pode ser desfeita.
-                                </DialogDescription>
-                                </DialogHeader>
-                                <DialogFooter>
-                                <DialogClose asChild>
-                                    <Button variant="outline">Cancelar</Button>
-                                </DialogClose>
-                                <DialogClose asChild>
-                                    <Button variant="destructive" onClick={() => handleDelete(product.id)}>
-                                    Excluir
-                                    </Button>
-                                </DialogClose>
-                                </DialogFooter>
-                            </DialogContent>
-                        </Dialog>
+                         {/* Delete Button - Disabled for recipe products */}
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => handleDelete(product.id, product.name, product.recipeId)}
+                                    disabled={!!product.recipeId} // Disable if recipeId exists
+                                    className={`${product.recipeId ? "cursor-not-allowed text-muted-foreground" : "text-destructive hover:text-destructive"}`}
+                                >
+                                    <Trash2 className="h-4 w-4" />
+                                    <span className="sr-only">Excluir</span>
+                                </Button>
+                            </TooltipTrigger>
+                             <TooltipContent>
+                                <p>{product.recipeId ? 'Excluído com a Receita' : 'Excluir Produto'}</p>
+                             </TooltipContent>
+                        </Tooltip>
                       </div>
                     </TableCell>
                   </TableRow>
                    ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={7} className="h-24 text-center text-muted-foreground">
+                  <TableCell colSpan={8} className="h-24 text-center text-muted-foreground">
                     Nenhum produto cadastrado ainda.
                   </TableCell>
                 </TableRow>
