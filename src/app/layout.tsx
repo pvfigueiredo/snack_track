@@ -27,15 +27,15 @@ export default function RootLayout({
           <ProtectedLayout> {/* Wrap content with ProtectedLayout */}
             <div className="flex flex-col min-h-screen">
               {/* Header remains, but navigation might be conditional inside ProtectedLayout */}
-              <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+              {/* <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
                 <div className="container flex h-14 items-center">
                   <Link href="/" className="mr-6 flex items-center space-x-2">
                     <Utensils className="h-6 w-6 text-primary"/>
                     <span className="font-bold text-primary">SnackTrack</span>
                   </Link>
                   {/* Navigation and Logout button are now inside ProtectedLayout */}
-                </div>
-              </header>
+                {/* </div>
+              </header> */}
               <main className="flex-1 container py-8">{children}</main>
               <Toaster />
               <footer className="py-6 md:px-8 md:py-0 border-t bg-secondary/50">
