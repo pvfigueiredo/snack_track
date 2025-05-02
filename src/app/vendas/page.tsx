@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import React, { useState } from 'react';
@@ -158,7 +159,7 @@ export default function VendasPage() {
                         onClick={() => handleTableClick(table.id)}
                         className={`relative flex flex-col items-center justify-center aspect-square p-4 cursor-pointer transition-all duration-150 ease-in-out hover:shadow-lg hover:scale-105 group ${getStatusColor(table.status)} bg-card`}
                     >
-                     {/* Delete Button */}
+                     {/* Delete Button Confirmation Dialog */}
                      <Dialog>
                         <DialogTrigger asChild>
                              <Tooltip>
@@ -167,7 +168,7 @@ export default function VendasPage() {
                                         variant="ghost"
                                         size="icon"
                                         className="absolute top-1 right-1 h-6 w-6 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity z-10"
-                                        onClick={(e) => e.stopPropagation()} // Prevent card click
+                                        onClick={(e) => e.stopPropagation()} // Prevent card click when opening dialog
                                     >
                                         <Trash2 className="h-4 w-4" />
                                         <span className="sr-only">Excluir Mesa</span>
@@ -183,16 +184,31 @@ export default function VendasPage() {
                                 <DialogTitle>Confirmar Exclusão</DialogTitle>
                                 <DialogDescription>
                                     Tem certeza que deseja excluir a Mesa {table.number}?
-                                    {table.order.length > 0 && <span className="block text-destructive font-semibold mt-2"><AlertCircle className="inline h-4 w-4 mr-1"/>Esta mesa tem uma comanda ativa!</span>}
+                                    {table.order.length > 0 && (
+                                        <span className="block text-destructive font-semibold mt-2">
+                                            <AlertCircle className="inline h-4 w-4 mr-1"/>Esta mesa tem uma comanda ativa! A exclusão não é permitida.
+                                        </span>
+                                    )}
+                                    {table.order.length === 0 && " Esta ação não pode ser desfeita."}
                                 </DialogDescription>
                                 </DialogHeader>
                                 <DialogFooter>
                                 <DialogClose asChild>
-                                    <Button variant="outline">Cancelar</Button>
+                                    <Button variant="outline" onClick={(e) => e.stopPropagation()}>Cancelar</Button>
                                 </DialogClose>
                                 <DialogClose asChild>
-                                    <Button variant="destructive" onClick={(e) => { e.stopPropagation(); handleDeleteTable(table.id, table.number); }}>
-                                    Excluir
+                                    {/* Disable delete if order exists, otherwise wire up delete function */}
+                                    <Button
+                                        variant="destructive"
+                                        onClick={(e) => {
+                                            e.stopPropagation(); // Prevent card click
+                                            if (table.order.length === 0) {
+                                                handleDeleteTable(table.id, table.number);
+                                            }
+                                        }}
+                                        disabled={table.order.length > 0} // Disable button if order exists
+                                    >
+                                        Excluir
                                     </Button>
                                 </DialogClose>
                                 </DialogFooter>
